@@ -1,5 +1,5 @@
-# Publish to PyPI when a version tag vX.Y.Z is pushed (e.g. v0.2.0).
-# The version in pyproject.toml MUST match the tag (without the "v" prefix).
+# Publish to PyPI — only when you run this workflow manually (Actions → Publish → Run workflow).
+# Bump ``version`` in pyproject.toml and merge to the branch you select before publishing.
 #
 # One-time PyPI setup:
 # - Recommended: Trusted Publishing — https://docs.pypi.org/trusted-publishers/
@@ -9,9 +9,7 @@
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,20 +27,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify tag matches pyproject.toml version
+      - name: Read version from pyproject.toml
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          case "$TAG" in
-            v*) VER="${TAG#v}" ;;
-            *) echo "::error::Tag must start with v (e.g. v0.2.0), got: $TAG"; exit 1 ;;
-          esac
           PKG=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          if [ "$VER" != "$PKG" ]; then
-            echo "::error::Tag $TAG implies version '$VER' but pyproject.toml has '$PKG'"
-            exit 1
-          fi
-          echo "OK: publishing version $PKG"
+          echo "Publishing pap-scraper ${PKG} to PyPI (from pyproject.toml on this ref)"
 
       - name: Build sdist and wheel
         run: uv build
