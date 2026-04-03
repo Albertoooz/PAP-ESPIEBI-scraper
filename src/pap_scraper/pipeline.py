@@ -49,7 +49,7 @@ def fetch_last_listing_page_index(settings: Settings) -> int | None:
 
 
 def collect_raw_list_entries_from_site_search(settings: Settings) -> list[ListEntry]:
-    """Fetch ``/wyszukiwarka`` for each include-keyword (dedupe), same page cap / early-stop as listing."""
+    """Site search: one paginated fetch per include-keyword (dedupe); same caps as listing."""
     logger.info(
         "Site search: %s keyword(s), up to %s page index(es) each (from %s)",
         len(settings.include_keywords),
