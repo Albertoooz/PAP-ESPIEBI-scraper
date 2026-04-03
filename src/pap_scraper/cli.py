@@ -48,6 +48,11 @@ def _apply_cli_args_to_settings(args: argparse.Namespace, settings: Settings) ->
             settings.date_to = date.fromisoformat(args.until)
         settings.last_days = None
 
+    if getattr(args, "listing_page_count", None) is None and (
+        getattr(args, "since", None) or getattr(args, "last_days", None) is not None
+    ):
+        settings.listing_page_count = 5000
+
 
 def _listing_filter_parents() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
@@ -57,7 +62,11 @@ def _listing_filter_parents() -> argparse.ArgumentParser:
         default=None,
         dest="listing_page_count",
         metavar="N",
-        help=("How many listing pages to fetch from --page-start (default: PAP_MAX_PAGE or 20)"),
+        help=(
+            "Hard cap on listing pages (?page=). With --since/--last-days, default is 5000 unless "
+            "set; listing also stops early when all days on a page are before --since. "
+            "(default: PAP_MAX_PAGE or 20 without date lower bound)"
+        ),
     )
     p.add_argument(
         "--page-start",

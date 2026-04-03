@@ -10,7 +10,12 @@ from playwright.sync_api import sync_playwright
 from pap_scraper.config import Settings
 from pap_scraper.download import download_attachment
 from pap_scraper.extract import find_attachment_urls
-from pap_scraper.filter_entries import ListEntry, apply_list_filters
+from pap_scraper.filter_entries import (
+    ListEntry,
+    apply_list_filters,
+    effective_date_lower,
+    entry_published_date,
+)
 from pap_scraper.http_client import DomainThrottler, build_session, get_text
 from pap_scraper.list_scrape import parse_last_page_index, parse_list_page
 from pap_scraper.metadata_extract import (
@@ -34,13 +39,14 @@ def fetch_last_listing_page_index(settings: Settings) -> int | None:
 
 
 def collect_raw_list_entries(settings: Settings) -> list[ListEntry]:
-    """Fetch listing pages ``listing_page_start`` … (exclusive end by count)."""
+    """Fetch listing pages until ``listing_page_count`` cap or early-stop (see below)."""
     session = build_session(settings)
     throttler = DomainThrottler(settings.min_interval_sec)
     seen: set[str] = set()
     out: list[ListEntry] = []
     start = settings.listing_page_start
     end = start + settings.listing_page_count
+    lower = effective_date_lower(settings)
     for idx in range(start, end):
         url = settings.list_url_template.format(page=idx)
         logger.info("Listing page index %s: %s", idx, url)
@@ -51,6 +57,17 @@ def collect_raw_list_entries(settings: Settings) -> list[ListEntry]:
                 seen.add(e["node_url"])
                 out.append(e)
         logger.info("Page index %s: %s entries (unique total: %s)", idx, len(batch), len(out))
+        if lower is not None and batch:
+            dates = [d for e in batch if (d := entry_published_date(e)) is not None]
+            if dates and max(dates) < lower:
+                logger.info(
+                    "Stopping listing: page %s newest day %s is before since=%s — older pages "
+                    "would not match date filter",
+                    idx,
+                    max(dates),
+                    lower,
+                )
+                break
     return out
 
 

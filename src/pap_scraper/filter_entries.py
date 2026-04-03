@@ -48,7 +48,8 @@ def filter_entries(
     return out
 
 
-def _entry_published_date(entry: ListEntry) -> date | None:
+def entry_published_date(entry: ListEntry) -> date | None:
+    """Calendar date (Europe/Warsaw) from ``published_at``, or None if missing/invalid."""
     raw = entry.get("published_at")
     if not raw:
         return None
@@ -59,6 +60,14 @@ def _entry_published_date(entry: ListEntry) -> date | None:
         return dt.astimezone(_WARSAW).date()
     except ValueError:
         return None
+
+
+def effective_date_lower(settings: Settings) -> date | None:
+    """Lower calendar date for filters and listing early-stop (same as date filter lower bound)."""
+    today = datetime.now(_WARSAW).date()
+    if settings.last_days is not None:
+        return today - timedelta(days=settings.last_days - 1) if settings.last_days > 0 else today
+    return settings.date_from
 
 
 def _normalize_channel_badge(raw: str) -> str:
@@ -101,7 +110,7 @@ def filter_by_date_settings(entries: list[ListEntry], settings: Settings) -> lis
     dropped = 0
     out: list[ListEntry] = []
     for e in entries:
-        d = _entry_published_date(e)
+        d = entry_published_date(e)
         if d is None:
             dropped += 1
             continue

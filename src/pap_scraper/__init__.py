@@ -13,6 +13,8 @@ from pap_scraper.extract import find_attachment_urls
 from pap_scraper.filter_entries import (
     ListEntry,
     apply_list_filters,
+    effective_date_lower,
+    entry_published_date,
     filter_entries,
 )
 from pap_scraper.list_scrape import parse_last_page_index, parse_list_page
@@ -47,6 +49,8 @@ __all__ = [
     "apply_list_filters",
     "collect_raw_list_entries",
     "discover_filtered",
+    "effective_date_lower",
+    "entry_published_date",
     "fetch_last_listing_page_index",
     "filter_entries",
     "find_attachment_urls",

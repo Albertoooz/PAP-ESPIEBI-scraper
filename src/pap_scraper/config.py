@@ -61,7 +61,8 @@ class Settings:
         default_factory=lambda: _env_str("PAP_BASE_URL", "https://espiebi.pap.pl").rstrip("/")
     )
     output_dir: Path = field(default_factory=lambda: Path(_env_str("PAP_OUTPUT_DIR", "reports")))
-    #: Number of listing pages to fetch (?page= is 0-based). Env: ``PAP_MAX_PAGE``.
+    #: Max listing pages (?page=, 0-based). With a date lower bound, collection also stops
+    #: when the newest day on a page is before that bound. Env: ``PAP_MAX_PAGE``.
     listing_page_count: int = field(default_factory=lambda: _env_int("PAP_MAX_PAGE", 20))
     #: First listing page index (inclusive). Env: ``PAP_LISTING_PAGE_START``.
     listing_page_start: int = field(default_factory=lambda: _env_int("PAP_LISTING_PAGE_START", 0))
