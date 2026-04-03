@@ -99,6 +99,11 @@ class Settings:
     skip_keyword_filter: bool = field(
         default_factory=lambda: _env_bool("PAP_SKIP_KEYWORD_FILTER", False),
     )
+    #: When keyword filter is on, fetch ``/wyszukiwarka`` per include-keyword instead of
+    #: walking ``/?page=``. Set false to force the listing path. Env: ``PAP_USE_SITE_SEARCH``.
+    use_site_search_for_keywords: bool = field(
+        default_factory=lambda: _env_bool("PAP_USE_SITE_SEARCH", True),
+    )
     #: ``all`` | ``espi`` | ``ebi`` — filter by listing badge.
     channel: Literal["all", "espi", "ebi"] = field(default_factory=_env_channel)
     #: Inclusive date lower bound (entry ``published_at`` date). Env: ``PAP_DATE_FROM`` (ISO).
@@ -148,6 +153,7 @@ def load_settings(
     include_keywords: tuple[str, ...] | None = None,
     exclude_keywords: tuple[str, ...] | None = None,
     skip_keyword_filter: bool | None = None,
+    use_site_search_for_keywords: bool | None = None,
     channel: Literal["all", "espi", "ebi"] | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -172,6 +178,8 @@ def load_settings(
         s.exclude_keywords = exclude_keywords
     if skip_keyword_filter is not None:
         s.skip_keyword_filter = skip_keyword_filter
+    if use_site_search_for_keywords is not None:
+        s.use_site_search_for_keywords = use_site_search_for_keywords
     if channel is not None:
         s.channel = channel
     if date_from is not None:

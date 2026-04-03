@@ -17,7 +17,7 @@ from pap_scraper.filter_entries import (
     entry_published_date,
 )
 from pap_scraper.http_client import DomainThrottler, build_session, get_text
-from pap_scraper.list_scrape import parse_last_page_index, parse_list_page
+from pap_scraper.list_scrape import build_search_url, parse_last_page_index, parse_list_page
 from pap_scraper.metadata_extract import (
     node_metadata_json_path,
     parse_node_metadata,
@@ -29,6 +29,16 @@ from pap_scraper.storage import load_manifest
 logger = logging.getLogger(__name__)
 
 
+def _use_site_search(settings: Settings) -> bool:
+    if settings.skip_keyword_filter:
+        return False
+    if not settings.use_site_search_for_keywords:
+        return False
+    if not settings.include_keywords:
+        return False
+    return True
+
+
 def fetch_last_listing_page_index(settings: Settings) -> int | None:
     """Return the last ``?page=`` index from the first listing page (see pagination)."""
     session = build_session(settings)
@@ -38,8 +48,56 @@ def fetch_last_listing_page_index(settings: Settings) -> int | None:
     return parse_last_page_index(html)
 
 
+def collect_raw_list_entries_from_site_search(settings: Settings) -> list[ListEntry]:
+    """Fetch ``/wyszukiwarka`` for each include-keyword (dedupe), same page cap / early-stop as listing."""
+    logger.info(
+        "Site search: %s keyword(s), up to %s page index(es) each (from %s)",
+        len(settings.include_keywords),
+        settings.listing_page_count,
+        settings.listing_page_start,
+    )
+    session = build_session(settings)
+    throttler = DomainThrottler(settings.min_interval_sec)
+    seen: set[str] = set()
+    out: list[ListEntry] = []
+    start = settings.listing_page_start
+    end = start + settings.listing_page_count
+    lower = effective_date_lower(settings)
+    for kw in settings.include_keywords:
+        for idx in range(start, end):
+            url = build_search_url(settings.base_url, kw, idx)
+            logger.info("Search (keyword %r) page index %s: %s", kw, idx, url)
+            html = get_text(session, throttler, settings, url)
+            batch = parse_list_page(html, settings.base_url)
+            for e in batch:
+                if e["node_url"] not in seen:
+                    seen.add(e["node_url"])
+                    out.append(e)
+            logger.info(
+                "Search %r page %s: %s entries (unique total: %s)",
+                kw,
+                idx,
+                len(batch),
+                len(out),
+            )
+            if lower is not None and batch:
+                dates = [d for e in batch if (d := entry_published_date(e)) is not None]
+                if dates and max(dates) < lower:
+                    logger.info(
+                        "Stopping search for keyword %r: page %s newest day %s is before since=%s",
+                        kw,
+                        idx,
+                        max(dates),
+                        lower,
+                    )
+                    break
+    return out
+
+
 def collect_raw_list_entries(settings: Settings) -> list[ListEntry]:
-    """Fetch listing pages until ``listing_page_count`` cap or early-stop (see below)."""
+    """Fetch listing or site-search pages until cap or early-stop (see below)."""
+    if _use_site_search(settings):
+        return collect_raw_list_entries_from_site_search(settings)
     session = build_session(settings)
     throttler = DomainThrottler(settings.min_interval_sec)
     seen: set[str] = set()

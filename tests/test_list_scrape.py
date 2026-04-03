@@ -1,4 +1,4 @@
-from pap_scraper.list_scrape import parse_last_page_index, parse_list_page
+from pap_scraper.list_scrape import build_search_url, parse_last_page_index, parse_list_page
 
 _HTML = """
 <section class="region-page-listing">
@@ -23,6 +23,33 @@ _HTML = """
 </div>
 </section>
 """
+
+
+def test_parse_list_page_search_h2_date() -> None:
+    """``/wyszukiwarka`` groups days with ``h2.date`` (ISO) instead of ``h3``."""
+    html = """
+    <div class="day">
+    <h2 class="date">2026-03-31</h2>
+    <ul class="newsList">
+      <li class="news">
+        <div class="badge">ESPI</div>
+        <div class="hour">18:31</div>
+        <a class="link" href="/node/9">Test title</a>
+      </li>
+    </ul>
+    </div>
+    """
+    base = "https://espiebi.pap.pl"
+    entries = parse_list_page(html, base)
+    assert len(entries) == 1
+    assert entries[0]["published_at"].startswith("2026-03-31T18:31")
+
+
+def test_build_search_url_encodes_query() -> None:
+    u = build_search_url("https://espiebi.pap.pl", "a b", 2)
+    assert u.startswith("https://espiebi.pap.pl/wyszukiwarka?")
+    assert "search=a+b" in u or "search=a%20b" in u
+    assert "page=2" in u
 
 
 def test_parse_list_page_structure() -> None:

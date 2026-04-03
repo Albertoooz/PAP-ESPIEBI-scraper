@@ -37,6 +37,8 @@ def _apply_cli_args_to_settings(args: argparse.Namespace, settings: Settings) ->
         settings.exclude_keywords = exc
     if getattr(args, "no_keyword_filter", False):
         settings.skip_keyword_filter = True
+    if getattr(args, "from_listing", False):
+        settings.use_site_search_for_keywords = False
     if getattr(args, "last_days", None) is not None:
         settings.last_days = args.last_days
         settings.date_from = None
@@ -51,7 +53,14 @@ def _apply_cli_args_to_settings(args: argparse.Namespace, settings: Settings) ->
     if getattr(args, "listing_page_count", None) is None and (
         getattr(args, "since", None) or getattr(args, "last_days", None) is not None
     ):
-        settings.listing_page_count = 5000
+        if (
+            not settings.skip_keyword_filter
+            and settings.use_site_search_for_keywords
+            and settings.include_keywords
+        ):
+            settings.listing_page_count = 200
+        else:
+            settings.listing_page_count = 5000
 
 
 def _listing_filter_parents() -> argparse.ArgumentParser:
@@ -63,9 +72,11 @@ def _listing_filter_parents() -> argparse.ArgumentParser:
         dest="listing_page_count",
         metavar="N",
         help=(
-            "Hard cap on listing pages (?page=). With --since/--last-days, default is 5000 unless "
-            "set; listing also stops early when all days on a page are before --since. "
-            "(default: PAP_MAX_PAGE or 20 without date lower bound)"
+            "Hard cap on pages: main listing (?page=) or, with keyword search, each "
+            "/wyszukiwarka keyword. With --since/--last-days: default 5000 for listing / "
+            "--from-listing, else 200 per keyword for site search unless set. Early-stop when "
+            "the newest day on a page is before --since. (default: PAP_MAX_PAGE or 20 without "
+            "date lower bound)"
         ),
     )
     p.add_argument(
@@ -103,6 +114,14 @@ def _listing_filter_parents() -> argparse.ArgumentParser:
         "--no-keyword-filter",
         action="store_true",
         help="Do not filter by include keywords (exclude keywords still apply)",
+    )
+    p.add_argument(
+        "--from-listing",
+        action="store_true",
+        help=(
+            "Walk main listing (?page=) instead of /wyszukiwarka when keyword filter is on "
+            "(default: search per include-keyword)"
+        ),
     )
     p.add_argument(
         "--include-keywords",

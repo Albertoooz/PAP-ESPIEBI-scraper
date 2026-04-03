@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
@@ -26,6 +26,17 @@ def _parse_day_header(text: str) -> date | None:
         return None
 
 
+def _parse_iso_day_header(text: str) -> date | None:
+    """``YYYY-MM-DD`` (search results use ``h2.date``)."""
+    t = text.strip()
+    if len(t) < 10:
+        return None
+    try:
+        return date.fromisoformat(t[:10])
+    except ValueError:
+        return None
+
+
 def _combine_published_at(day: date, time_text: str) -> datetime | None:
     m = _TIME_RE.match(time_text.strip())
     if not m:
@@ -38,13 +49,18 @@ def _combine_published_at(day: date, time_text: str) -> datetime | None:
 
 
 def parse_list_page(html: str, base_url: str) -> list[ListEntry]:
-    """Parse listing HTML for /?page=n (Drupal ESPI/EBI listing)."""
+    """Parse listing HTML for ``/?page=n`` or ``/wyszukiwarka`` (same ``ul.newsList`` markup)."""
     soup = BeautifulSoup(html, "html.parser")
     entries: list[ListEntry] = []
     for ul in soup.select("ul.newsList"):
+        day_date: date | None = None
         h3 = ul.find_previous("h3")
-        day_text = h3.get_text() if h3 else ""
-        day_date = _parse_day_header(day_text) if day_text else None
+        if h3:
+            day_date = _parse_day_header(h3.get_text())
+        if day_date is None:
+            h2d = ul.find_previous("h2", class_="date")
+            if h2d:
+                day_date = _parse_iso_day_header(h2d.get_text())
 
         for li in ul.select("li.news"):
             a = li.select_one("a.link[href*='/node/'], a[href*='/node/']")
@@ -79,6 +95,13 @@ def parse_list_page(html: str, base_url: str) -> list[ListEntry]:
             entries.append(entry)
 
     return entries
+
+
+def build_search_url(base_url: str, query: str, page: int) -> str:
+    """GET form on ``/wyszukiwarka`` (``search`` + 0-based ``page``)."""
+    base = base_url.rstrip("/")
+    q = urlencode({"search": query, "page": page})
+    return f"{base}/wyszukiwarka?{q}"
 
 
 def parse_last_page_index(html: str) -> int | None:
