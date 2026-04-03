@@ -135,10 +135,7 @@ def _build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "--no-metadata",
         action="store_true",
-        help=(
-            "Do not store per-node JSON metadata under node_metadata/ "
-            "(default: on, for RAG)"
-        ),
+        help=("Do not store per-node JSON metadata under node_metadata/ (default: on, for RAG)"),
     )
 
     lf = _listing_filter_parents()
