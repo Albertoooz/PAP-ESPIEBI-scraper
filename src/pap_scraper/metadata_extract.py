@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 from pap_scraper.extract import find_attachment_urls
 
@@ -94,14 +95,15 @@ def _extract_title(soup: BeautifulSoup, *, seed_title: str) -> str:
         "h1.mainTitle .field--name-title",
     ):
         el = soup.select_one(sel)
-        if el:
+        if isinstance(el, Tag):
             t = el.get_text(strip=True)
             if t and not _is_generic_title(t):
                 return t
 
     tt = soup.find("title")
-    if tt and tt.string:
-        t = tt.string.strip()
+    if isinstance(tt, Tag) and tt.string:
+        raw = tt.string
+        t = raw.strip() if isinstance(raw, str) else str(raw).strip()
         t = _SITE_TITLE_SUFFIX.sub("", t).strip()
         if t and not _is_generic_title(t):
             return t
@@ -110,13 +112,15 @@ def _extract_title(soup: BeautifulSoup, *, seed_title: str) -> str:
         soup.select_one('meta[property="og:title"]'),
         soup.select_one('meta[name="twitter:title"]'),
     ):
-        if meta and meta.get("content"):
+        if isinstance(meta, Tag) and meta.get("content"):
             t = str(meta["content"]).strip()
             t = _SITE_TITLE_SUFFIX.sub("", t).strip()
             if t and not _is_generic_title(t):
                 return t
 
     for h1 in soup.find_all("h1"):
+        if not isinstance(h1, Tag):
+            continue
         t = h1.get_text(strip=True)
         if t and not _is_generic_title(t):
             return t
@@ -131,7 +135,7 @@ def _is_generic_title(t: str) -> bool:
 def _drupal_field_item(soup: BeautifulSoup, field_name: str) -> str | None:
     """e.g. ``field_name`` = ``field-report-source`` → class ``field--name-field-report-source``."""
     el = soup.select_one(f"div.field--name-{field_name} .field__item")
-    if not el:
+    if not isinstance(el, Tag):
         return None
     text = el.get_text("\n", strip=True)
     return text if text else None
@@ -148,10 +152,10 @@ def _extract_main_text(soup: BeautifulSoup) -> str:
         "div.field-body",
     ):
         el = soup.select_one(sel)
-        if not el:
+        if not isinstance(el, Tag):
             continue
         clone = BeautifulSoup(str(el), "html.parser")
-        for tag in clone(["script", "style", "nav", "footer"]):
+        for tag in clone.find_all(["script", "style", "nav", "footer"]):
             tag.decompose()
         for aside in clone.find_all("aside"):
             aside.decompose()
@@ -160,56 +164,56 @@ def _extract_main_text(soup: BeautifulSoup) -> str:
             return text
 
     inner = soup.select_one("main.main-content#content[role='main']")
-    if inner:
+    if isinstance(inner, Tag):
         clone = BeautifulSoup(str(inner), "html.parser")
-        for tag in clone(["script", "style", "nav", "footer"]):
+        for tag in clone.find_all(["script", "style", "nav", "footer"]):
             tag.decompose()
         for hid in ("block-espi-barrio-page-title",):
-            el = clone.find(id=hid)
-            if el:
-                el.decompose()
+            blk = clone.find(id=hid)
+            if isinstance(blk, Tag):
+                blk.decompose()
         ch = clone.select_one(".containerHeader")
-        if ch:
+        if isinstance(ch, Tag):
             ch.decompose()
         text = clone.get_text("\n", strip=True)
         if len(text) >= 80:
             return text
 
     body = soup.find("body")
-    if body:
-        for tag in body(["script", "style", "nav", "footer", "aside"]):
+    if isinstance(body, Tag):
+        for tag in body.find_all(["script", "style", "nav", "footer", "aside"]):
             tag.decompose()
-        for hid in ("header",):
-            el = body.find(id=hid)
-            if el:
-                el.decompose()
-        text = body.get_text("\n", strip=True)
-        return text
+        hdr = body.find(id="header")
+        if isinstance(hdr, Tag):
+            hdr.decompose()
+        return body.get_text("\n", strip=True)
     return ""
 
 
 def _meta_content(soup: BeautifulSoup, name: str) -> str | None:
     m = soup.select_one(f'meta[name="{name}"]')
-    if m and m.get("content"):
+    if isinstance(m, Tag) and m.get("content"):
         return str(m["content"]).strip() or None
     if name == "description":
         m = soup.select_one('meta[property="og:description"]')
-        if m and m.get("content"):
+        if isinstance(m, Tag) and m.get("content"):
             return str(m["content"]).strip() or None
     return None
 
 
 def _html_lang(soup: BeautifulSoup) -> str | None:
     html = soup.find("html")
-    if html and html.get("lang"):
-        return str(html["lang"]).strip() or None
+    if isinstance(html, Tag):
+        lang = html.get("lang")
+        if lang:
+            return str(lang).strip() or None
     return None
 
 
 def _extract_channel(soup: BeautifulSoup) -> str | None:
     for sel in (".badge", "span.badge", "div.badge"):
         el = soup.select_one(sel)
-        if el:
+        if isinstance(el, Tag):
             t = el.get_text(strip=True)
             if t:
                 return t
@@ -218,11 +222,11 @@ def _extract_channel(soup: BeautifulSoup) -> str | None:
 
 def _extract_published_iso(soup: BeautifulSoup) -> str | None:
     time_el = soup.find("time")
-    if time_el and time_el.get("datetime"):
+    if isinstance(time_el, Tag) and time_el.get("datetime"):
         return str(time_el["datetime"]).strip() or None
     for prop in ("article:published_time", "og:updated_time"):
         m = soup.select_one(f'meta[property="{prop}"]')
-        if m and m.get("content"):
+        if isinstance(m, Tag) and m.get("content"):
             return str(m["content"]).strip() or None
     return None
 
